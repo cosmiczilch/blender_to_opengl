@@ -1,1 +1,33 @@
-# 
+# A python script to export blender objects into equivalent OpenGL code
+# (using vertex_buffer_objects) including textures, materials, and bones.
+
+# Usage Steps / Instructions :
+
+. Source this script into Blender. 
+
+. Select all the objects you want to export and run the script.
+  NOTE : make sure none of your objects have special characters (non-alnum_underscore)
+  in their names. In case they do and you do not want to change that, you will have to
+  edit the final .c files that will be exported. 
+  (since these characters can't appear in C identifiers)
+
+. 2 files will be exported : a .h and a .c
+
+. Include both into your project. 
+
+. In order to use these files, you'll also need to compile vbo_Utilities, CTexture, and
+  CPolyModel into your project. 
+  The respective .h and .c files for these modules are found in the repository
+  git@github.com:cosmiczilch/misc_opengl_utilities
+  [ https://github.com/cosmiczilch/misc_opengl_utilities ]
+
+. In your program, you'll need to call just 2 functions :
+  > initialize_all_models () : this will initialize the polymodels objects for use. 
+  > ready_all_models_for_render () : this will 'compile' the VBOs for all objects.
+  > <ObjectName>.draw() : each ObjectName exported will have an individual .draw ()
+    function which will draw the object using VBOs.
+    If you pass the flag, RENDER_FLAGS__MAKE_NOW into draw (), you'll not need to
+    call ready_all_models_for_render () above
+
+. That's it!
+
