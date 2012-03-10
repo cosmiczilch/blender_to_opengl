@@ -97,7 +97,7 @@ def save_opengl(filename):
 	header_file.write("\n\n#include \"vbo_Utilities.h\"")
 	header_file.write("\n#include \"cpolymodel.h\"")
 
-	header_file.write("\n\n// The following is the list of objects that will be exported : \n")
+	header_file.write("\n\n// The following is the list of objects that will be exported :")
 	# The actual object names and their estern declarations will be written out in the loop below
 
 	f.write("#include \"%s.h\"\n\n" % filename)
@@ -110,9 +110,7 @@ def save_opengl(filename):
 	for obj in objects:
 		nmesh = NMesh.GetRawFromObject(obj.name)
 	
-		header_file.write("\nextern CPolyModel %s;" % (nmesh.name))
-		header_file.write("\n\nvoid initialize_all_models ();")
-		header_file.write("\nvoid ready_all_models_for_render ();")
+		header_file.write("\n\nextern CPolyModel %s;" % (nmesh.name))
 
 		f.write("\n// Object: %s" % (nmesh.name))
 		f.write("\nCPolyModel %s;" % (nmesh.name))
@@ -204,23 +202,52 @@ def save_opengl(filename):
 		f.write("\n\t%s.vbo.bulk_init_normals (numVertices, (vector3f *)normals);\n\n" % (nmesh.name))
 
 
-		numFaces = len(nmesh.faces)
+		numFaces = 0
+		for face in nmesh.faces:
+			numFaces = numFaces + 1
+			if len(face.v) == 4:		# , because quads will be exported as 2 triangles (see below)
+				numFaces = numFaces + 1
 		f.write("\n\tint numFaces = %d;\n" % numFaces)
 
 		# Write out the indices to form each face of the object
 		f.write("\n\tGLuint indices[] = {")
 		for face in nmesh.faces:
 			f.write("\n\t\t")
-			for vertex in face.v:
-				f.write("%d, " % vertex.index)
+			f.write("%d, " % face.v[0].index)
+			f.write("%d, " % face.v[1].index)
+			f.write("%d, " % face.v[2].index)
+			if len(face.v) == 4:
+				f.write("\n\t\t")
+				f.write("%d, " % face.v[3].index)
+				f.write("%d, " % face.v[0].index)
+				f.write("%d, " % face.v[2].index)
 		f.write("\n\t};")
 		f.write("\n\t%s.vbo.bulk_init_indices (numFaces, (GLuint *)indices);\n\n" % (nmesh.name))
+
+		#translation
+		locx = 0;
+		locy = 0;
+		locz = 0;
+		if obj.LocX > 0.0001 or obj.LocX < -0.0001:
+			locx = obj.LocX
+		if obj.LocY > 0.0001 or obj.LocY < -0.0001:
+			locy = obj.LocY
+		if obj.LocZ > 0.0001 or obj.LocZ < -0.0001:
+			locz = obj.LocZ
+		
+		f.write("\n\t%s.locX = %f;" % (nmesh.name, locx))
+		f.write("\n\t%s.locY = %f;" % (nmesh.name, locy))
+		f.write("\n\t%s.locZ = %f;" % (nmesh.name, locz))
+
 
 		f.write("\n\treturn;")
 		f.write("\n}")
 	
 		obj_index += 1
 
+
+	header_file.write("\n\nvoid initialize_all_models ();")
+	header_file.write("\nvoid ready_all_models_for_render ();")
 
 	f.write("\n\nvoid initialize_all_models () {")
 	for obj in objects:

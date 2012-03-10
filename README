@@ -10,6 +10,8 @@
   in their names. In case they do and you do not want to change that, you will have to
   edit the final .c files that will be exported. 
   (since these characters can't appear in C identifiers)
+  NOTE : make sure to clear/apply all rotation and scaling before you export. 
+  Click on : object -> clear/apply -> apply scale/rotation to object data
 
 . 2 files will be exported : a .h and a .c
 
@@ -21,13 +23,38 @@
   git@github.com:cosmiczilch/misc_opengl_utilities
   [ https://github.com/cosmiczilch/misc_opengl_utilities ]
 
-. In your program, you'll need to call just 2 functions :
+. Also, since VBO functionality is defined as an OpenGL extension, you'll need to have
+  setup your project to work with OpenGL extensions. 
+
+. In your program, you'll need to call just 2 functions to init models,
+  and 1 function to draw each object:
   > initialize_all_models () : this will initialize the polymodels objects for use. 
   > ready_all_models_for_render () : this will 'compile' the VBOs for all objects.
+
   > <ObjectName>.draw() : each ObjectName exported will have an individual .draw ()
     function which will draw the object using VBOs.
     If you pass the flag, RENDER_FLAGS__MAKE_NOW into draw (), you'll not need to
     call ready_all_models_for_render () above
 
+. For textures :
+  If you use uv-mapped textures in your object, In the initialize_all_models () function, 
+  you'll find <obj>.setTexture() being called with a path to the texture image.
+  Ensure that this path points to the correct relative/absolute path of the image.
+  * Also, we'll be loading the image via SDL and due to differences in image reading formats,
+  you'll have to do the following to your image for the mapping to look correct in the program :
+  1. rotate by 180degree
+  2. flip horizontally
+
 . That's it!
+
+
+################################################################################
+# TODO : 
+
+# export names of correct texture.png, and correct format
+
+# export rotation/scale data also
+
+# export material properties
+
 
