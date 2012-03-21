@@ -32,7 +32,8 @@ def newFName(ext):
 	return Blender.Get('filename')[: -len(Blender.Get('filename').split('.', -1)[-1]) ] + ext
 
 import Blender
-from Blender import Object, NMesh
+from Blender import Object, NMesh, Mesh
+from Blender import Armature
 	
 # My Co class
 class Co:
@@ -68,6 +69,7 @@ class MyVert:
 	co = Co(0.0, 0.0, 0.0)
 
 	index = 0
+	dup_vertex_index = -1
 
 	no = No(0.0, 0.0, 0.0)
 	uvco = Uvco(0.0, 0.0)
@@ -84,6 +86,7 @@ def save_opengl(filename):
 	# Open file
 	f = open(filename+".c","w")
 	header_file = open(filename+".h", "w")
+	bone_file = open(filename+".bone", "w")
 	
 	print "File %s created and opened. Now exporting..." % filename
 	
@@ -94,8 +97,9 @@ def save_opengl(filename):
 
 	header_file.write("\n\n#include <GL/gl.h>")
 	header_file.write("\n#include <GL/glu.h>")
+	header_file.write("\n\n#include \"Transformation.h\"")
 	header_file.write("\n\n#include \"vbo_Utilities.h\"")
-	header_file.write("\n#include \"cpolymodel.h\"")
+	header_file.write("\n\n#include \"bone.h\"")
 
 	header_file.write("\n\n// The following is the list of objects that will be exported :")
 	# The actual object names and their estern declarations will be written out in the loop below
@@ -110,14 +114,15 @@ def save_opengl(filename):
 	for obj in objects:
 		nmesh = NMesh.GetRawFromObject(obj.name)
 	
-		header_file.write("\n\nextern CPolyModel %s;" % (nmesh.name))
+		header_file.write("\n\nextern CVBO_Model %s;" % (nmesh.name))
 
 		f.write("\n// Object: %s" % (nmesh.name))
-		f.write("\nCPolyModel %s;" % (nmesh.name))
+		f.write("\nCVBO_Model %s;" % (nmesh.name))
 		f.write("\n\nvoid make_%s_vbo_arrays () {" % (nmesh.name))
 
 		# Get the list of vertices for the object
 		vertices = nmesh.verts[:]
+
 		# Get the list of faces for the object
 		faces = nmesh.faces[:]
 		# initialize a refCount array for the vertices
@@ -140,19 +145,19 @@ def save_opengl(filename):
 						vertices[vertex_idx].uvco.x = face.uv[idx][0]
 						vertices[vertex_idx].uvco.y = face.uv[idx][1]
 					elif face.uv[idx][0] != vertices[vertex_idx].uvco.x or face.uv[idx][1] != vertices[vertex_idx].uvco.y:
-						refCount_for_vertices.append(1)
 						# get a new temp vert of type MyVert
 						newVert = MyVert(0.0, 0.0, 0.0)
+
+						refCount_for_vertices.append(1)
 
 						# Copy over relevant stuff to newVert
 						newVert.co = Co(vertices[vertex_idx].co.x, vertices[vertex_idx].co.y, vertices[vertex_idx].co.z)
 
 						newVert.index = vertices[vertex_idx].index
+						newVert.dup_vertex_index = vertices[vertex_idx].index
 
 						newVert.no = No(vertices[vertex_idx].no.x, vertices[vertex_idx].no.y, vertices[vertex_idx].no.z)
 
-						# newVert.uvco.x = vertices[vertex_idx].uvco.x
-						# newVert.uvco.y = vertices[vertex_idx].uvco.y
 						newVert.uvco = Uvco(vertices[vertex_idx].uvco.x, vertices[vertex_idx].uvco.y)
 
 						# Append it to the list
@@ -178,7 +183,7 @@ def save_opengl(filename):
 			f.write("\n\t\t%f,\t%f,\t%f,\t1.0000," % (vertex.co.x, vertex.co.y, vertex.co.z) )
 			f.write("\t\t// index : %d" % (vertex.index) )
 		f.write("\n\t};")
-		f.write("\n\t%s.vbo.bulk_init_vertices (numVertices, (vector4f *)vertices);\n\n" % (nmesh.name))
+		f.write("\n\t%s.bulk_init_vertices (numVertices, (vec4 *)vertices);\n\n" % (nmesh.name))
 
 
 		# Write out the texture coordinates for the object
@@ -189,7 +194,7 @@ def save_opengl(filename):
 				f.write("\n\t\t%f,\t%f," % (vertex.uvco.x, vertex.uvco.y) )
 				f.write("\t\t// index : %d" % (vertex.index) )
 			f.write("\n\t};")
-			f.write("\n\t%s.vbo.bulk_init_textures (numVertices, (vector2f *)textures);\n\n" % (nmesh.name))
+			f.write("\n\t%s.bulk_init_textures (numVertices, (vec2 *)textures);\n\n" % (nmesh.name))
 
 
 		# Write out the normals for the object
@@ -199,7 +204,7 @@ def save_opengl(filename):
 			f.write("\n\t\t%f,\t%f,\t%f," % (vertex.no.x, vertex.no.y, vertex.no.z) )
 			f.write("\t\t// index : %d" % (vertex.index) )
 		f.write("\n\t};")
-		f.write("\n\t%s.vbo.bulk_init_normals (numVertices, (vector3f *)normals);\n\n" % (nmesh.name))
+		f.write("\n\t%s.bulk_init_normals (numVertices, (vec3 *)normals);\n\n" % (nmesh.name))
 
 
 		numFaces = 0
@@ -222,7 +227,8 @@ def save_opengl(filename):
 				f.write("%d, " % face.v[0].index)
 				f.write("%d, " % face.v[2].index)
 		f.write("\n\t};")
-		f.write("\n\t%s.vbo.bulk_init_indices (numFaces, (GLuint *)indices);\n\n" % (nmesh.name))
+		f.write("\n\t%s.bulk_init_indices (numFaces, (GLuint *)indices);\n\n" % (nmesh.name))
+
 
 		#translation
 		locx = 0;
@@ -242,6 +248,54 @@ def save_opengl(filename):
 
 		f.write("\n\treturn;")
 		f.write("\n}")
+
+		# Bone stuff
+		
+		mesh = Mesh.Get(obj.name)
+		obj.link(mesh)
+		f.write("\n\n// Object : %s " % (mesh.name))
+
+		numRealVerts = len(mesh.verts)
+
+		armatures = Armature.Get()	# type: dict
+		armature_names = armatures.keys()
+		for armature_name in armature_names:
+			f.write("\n// Armature %s, being used by %d users" % (armature_name, armatures[armature_name].users) )
+			if armatures[armature_name].users > 0:		# being used by at least 1 user (helps discard deleted armatures which are (for some reason) still lying around in Blender)
+				armature = armatures[armature_name]
+				bones = armature.bones		# type: dict
+				bone_names = bones.keys()
+				for bone_name in bone_names:				# loop over all bones
+					bone = bones[bone_name]
+					f.write("\n\nBone %s;" % bone.name)
+					header_file.write("\nextern Bone %s;" % bone.name)
+					
+					f.write("\n\nvoid init_%s_bone_influences () {" % bone.name)
+					f.write("\n\tInfluence influences[] = {")
+
+
+					num_influences = 0
+					for vertex_idx in range(numVerts):		# loop over all vertices, looking for The bone's influences
+						# bone_file.write("\nindex : %d " % (vertex_idx))
+						if vertex_idx < numRealVerts:
+							for influence in mesh.getVertexInfluences(vertex_idx):
+								if influence[0] == bone.name:
+									# bone_file.write("\n %s, %f" % (influence[0], influence[1]))
+									f.write("\n\t\tInfluence(%d, %f)," % (vertex_idx, influence[1]))
+									num_influences = num_influences + 1
+						elif vertex_idx >= numRealVerts:
+							for influence in mesh.getVertexInfluences(vertices[vertex_idx].dup_vertex_index):
+								if influence[0] == bone.name:
+									# bone_file.write("\n %s, %f" % (influence[0], influence[1]))
+									f.write("\n\t\tInfluence(%d, %f)," % (vertex_idx, influence[1]))
+									num_influences = num_influences + 1
+
+					f.write("\n\t};")
+					f.write("\n\n\t%s.bulkInitInfluences (%d, influences);" % (bone.name, num_influences))
+					f.write("\n\t%s.name = \"%s\";" % (bone.name, bone.name))
+					f.write("\n\n\treturn;")
+					f.write("\n};\n")
+				
 	
 		obj_index += 1
 
@@ -252,9 +306,27 @@ def save_opengl(filename):
 	f.write("\n\nvoid initialize_all_models () {")
 	for obj in objects:
 		nmesh = NMesh.GetRawFromObject(obj.name)
-		f.write("\n\n\t%s.initialize (make_%s_vbo_arrays);" % (nmesh.name, nmesh.name))
+		f.write("\n\n\tmake_%s_vbo_arrays ();" % (nmesh.name))
 		f.write("\n\t%s.setTexture (\"./cube_texture_test.png\", PNG);" % nmesh.name)
-		f.write("\n\t%s.setColor (0.2, 0.3, 0.4, 1.0);" % nmesh.name)
+		f.write("\n\t%s.setMatColor (0.2, 0.3, 0.4, 1.0);" % nmesh.name)
+		# Bone stuff : 
+		armatures = Armature.Get()	# type: dict
+		armature_names = armatures.keys()
+		for armature_name in armature_names:
+			if armatures[armature_name].users > 0:		# being used by at least 1 user (helps discard deleted armatures which are (for some reason) still lying around in Blender)
+				armature = armatures[armature_name]
+				bones = armature.bones		# type: dict
+				bone_names = bones.keys()
+				for bone_name in bone_names:				# loop over all bones
+					bone = bones[bone_name]
+					f.write("\n\tinit_%s_bone_influences ();" % bone.name)
+					f.write("\n\t%s.setVBO (&%s);" % (bone.name, obj.name) )
+					f.write("\n\t%s.addBone (&%s);" % (obj.name, bone.name) )
+
+
+
+
+
 	f.write("\n\n\treturn;\n}\n")
 
 	f.write("\n\nvoid ready_all_models_for_render () {")
@@ -265,6 +337,9 @@ def save_opengl(filename):
 
 	header_file.write("\n\n#endif\n\n")
 		
+
+		
+
 	print "Export complete"
 	
 	f.close()
